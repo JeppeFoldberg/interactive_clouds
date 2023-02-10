@@ -13,7 +13,7 @@ pacman::p_load(
 options(shiny.maxRequestSize = 30*1024^2)
 
 ui <- fluidPage(
-  titlePanel("Wordcloud creator"),
+  titlePanel("Wordcloud vaerktoej"),
   
   sidebarLayout(
     sidebarPanel(
@@ -32,7 +32,7 @@ ui <- fluidPage(
     sliderInput("max",
                 "Max antal ord:",
                 min = 1,  max = 300,  value = 100),
-    actionButton("update", "Change")
+    actionButton("update", "Opdater")
     ),
 
    
