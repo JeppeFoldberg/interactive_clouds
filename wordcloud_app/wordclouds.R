@@ -17,23 +17,22 @@ ui <- fluidPage(
   
   sidebarLayout(
     sidebarPanel(
-      h1("yeah")
     # Input: Select a file ----
-    # fileInput("file", "Vaelg sav fil",
-    #           accept = c(".sav")),
-    # 
-    # # Horizontal line ----
-    # tags$hr(),
-    # 
-    # textInput("textcolumn", "Navn paa tekst-kolonne"),
-    # 
-    # sliderInput("freq",
-    #             "Minimum frekvens:",
-    #             min = 1,  max = 50, value = 15),
-    # sliderInput("max",
-    #             "Max antal ord:",
-    #             min = 1,  max = 300,  value = 100),
-    # actionButton("update", "Change")
+    fileInput("file", "Vaelg sav fil",
+              accept = c(".sav")),
+
+    # Horizontal line ----
+    tags$hr(),
+
+    textInput("textcolumn", "Navn paa tekst-kolonne"),
+
+    sliderInput("freq",
+                "Minimum frekvens:",
+                min = 1,  max = 50, value = 15),
+    sliderInput("max",
+                "Max antal ord:",
+                min = 1,  max = 300,  value = 100),
+    actionButton("update", "Change")
     ),
 
    
@@ -56,23 +55,26 @@ server <- function(input, output) {
         #   read_sav() %>% 
         #   as_factor()
         # 
-        count_words(file$q9_22, stopwords = c('ja'))
+        count_words(file$q9_22,
+                    stopwords = c('ja'),
+                    n_words = input$max,
+                    mention_limit = input$freq)
       })
     })
   })
   
   # Make the wordcloud drawing predictable during a session
-  # wordcloud_rep <- repeatable(wordcloud2)
+  wordcloud_rep <- repeatable(wordcloud2)
   
   # getting colors for the word cloud - unnaming to get only vector of colors! 
   colors <- unname(epi_palettes$full[-1]) # indexing to avoid epinion Red in cloud!
            
   output$wordcloud <- renderWordcloud2({
     v <- terms()
-    wordcloud2(demoFreq,
-               fontFamily = 'Arial',
-               color = rep_len(colors, NROW(temp)),
-               rotateRatio = 0)
+    wordcloud_rep(v,
+                  fontFamily = 'Arial',
+                  color = rep_len(colors, NROW(temp)),
+                  rotateRatio = 0)
   })
 }
 
@@ -88,6 +90,7 @@ load_stopwords <- function() {
 count_words <- function(text_data,
                         stopwords = load_stopwords(),
                         mention_limit=10,
+                        n_words = 20,
                         patterns=NULL
 ) {
   tkns <- quanteda::tokens(text_data,
@@ -120,7 +123,8 @@ count_words <- function(text_data,
     dplyr::summarise(mentions = sum(.data$count, na.rm = TRUE)) %>%
     dplyr::ungroup() %>%
     dplyr::filter(.data$mentions >= mention_limit) %>% 
-    arrange(desc(.data$mentions))
+    arrange(desc(.data$mentions)) %>% 
+    slice_head(n = n_words)
 }
 
 
