@@ -9,8 +9,12 @@ pacman::p_load(
 )
 
 file <- read_sav("tekst_test_data.sav") %>% 
-  as_factor()
+  as_factor() %>% 
+  pull('q9_22')
 
+
+
+temp <- file['q9_22']
 text <- file$q9_22
 # attempt with Quanteda ---------------------------------------------------
 load_stopwords <- function() {

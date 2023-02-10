@@ -24,11 +24,11 @@ ui <- fluidPage(
     # Horizontal line ----
     tags$hr(),
 
-    textInput("textcolumn", "Navn paa tekst-kolonne"),
+    textInput("textColumn", "Navn paa tekst-kolonne", value="q9_22"),
 
     sliderInput("freq",
                 "Minimum frekvens:",
-                min = 1,  max = 50, value = 15),
+                min = 1,  max = 50, value = 1),
     sliderInput("max",
                 "Max antal ord:",
                 min = 1,  max = 300,  value = 100),
@@ -49,13 +49,18 @@ server <- function(input, output) {
       withProgress({
         setProgress(message = "Processing corpus...")
         
-        file <- read_sav("../tekst_test_data.sav") %>% 
-          as_factor()
-        # file <- input$file %>% 
-        #   read_sav() %>% 
+        # file <- read_sav("../tekst_test_data.sav") %>% 
         #   as_factor()
-        # 
-        count_words(file$q9_22,
+        req(input$file)
+        
+        file <- input$file$datapath
+        
+        data <- read_sav(file) %>%
+          as_factor() %>% 
+          pull(input$textColumn)
+        
+
+        count_words(data,
                     stopwords = c('ja'),
                     n_words = input$max,
                     mention_limit = input$freq)
@@ -65,10 +70,10 @@ server <- function(input, output) {
   
   # Make the wordcloud drawing predictable during a session
   wordcloud_rep <- repeatable(wordcloud2)
-  
-  # getting colors for the word cloud - unnaming to get only vector of colors! 
+
+  # getting colors for the word cloud - unnaming to get only vector of colors!
   colors <- unname(epi_palettes$full[-1]) # indexing to avoid epinion Red in cloud!
-           
+
   output$wordcloud <- renderWordcloud2({
     v <- terms()
     wordcloud_rep(v,
