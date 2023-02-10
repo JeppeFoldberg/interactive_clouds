@@ -1,9 +1,9 @@
 pacman::p_load(
   shiny,
-  tidyverse,
+  dplyr,
   haven,
   wordcloud2,
-  tm,
+  epinionR,
   quanteda,
   memoise
 )
@@ -24,7 +24,7 @@ load_stopwords <- function() {
 
 
 count_words <- function(text_data,
-                        stopwords = c('ja'),
+                        stopwords = c(),
                         mention_limit=10,
                         patterns=NULL
 ) {
@@ -48,7 +48,7 @@ count_words <- function(text_data,
   # https://www.r-bloggers.com/2019/08/no-visible-binding-for-global-variable/
   df <- dfm_question %>%
     quanteda::convert(to = "data.frame") %>%
-    tidyr::pivot_longer(!.data$doc_id,
+    tidyr::pivot_longer(!"doc_id",
                         names_to = "word",
                         values_to = "count") %>%
     dplyr::filter(.data$count > 0) %>%
@@ -63,7 +63,12 @@ count_words <- function(text_data,
 }
 
 temp <- count_words(file$q9_22, 
-                    stopwords = F,
                     mention_limit = 1)
 
-wordcloud2(temp)
+# getting colors for the word cloud - unnaming to get only vector of colors! 
+colors <- unname(epi_palettes$full[-1]) # indexing to avoid epinion Red in cloud!
+
+wc <- wordcloud2(temp,
+           fontFamily = 'Arial',
+           color = rep_len(colors, NROW(temp)),
+           rotateRatio = 0)

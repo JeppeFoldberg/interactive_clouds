@@ -1,11 +1,13 @@
 pacman::p_load(
   shiny,
+  dplyr,
+  haven,
   wordcloud2,
   tm,
+  epinionR,
+  quanteda,
   memoise
 )
-# library(shiny)
-# library(wordcloud2)
 
 # Makes sure that we can upload larger files - here 30 mb! 
 options(shiny.maxRequestSize = 30*1024^2)
@@ -15,26 +17,27 @@ ui <- fluidPage(
   
   sidebarLayout(
     sidebarPanel(
+      h1("yeah")
     # Input: Select a file ----
-    fileInput("file", "Choose sav file",
-              multiple = F,
-              accept = c(".sav")),
-    
-    # Horizontal line ----
-    tags$hr(),
-    
-    textInput("textcolumn", "Navn paa tekst-kolonne"),
-    
-    sliderInput("freq",
-                "Minimum frekvens:",
-                min = 1,  max = 50, value = 15),
-    sliderInput("max",
-                "Max antal ord:",
-                min = 1,  max = 300,  value = 100)
+    # fileInput("file", "Vaelg sav fil",
+    #           accept = c(".sav")),
+    # 
+    # # Horizontal line ----
+    # tags$hr(),
+    # 
+    # textInput("textcolumn", "Navn paa tekst-kolonne"),
+    # 
+    # sliderInput("freq",
+    #             "Minimum frekvens:",
+    #             min = 1,  max = 50, value = 15),
+    # sliderInput("max",
+    #             "Max antal ord:",
+    #             min = 1,  max = 300,  value = 100),
+    # actionButton("update", "Change")
     ),
 
    
-    mainPanel(plotOutput("plot"))
+    mainPanel(wordcloud2Output("wordcloud"))
   )
 )
 
@@ -46,40 +49,79 @@ server <- function(input, output) {
     isolate({
       withProgress({
         setProgress(message = "Processing corpus...")
-        file <- input$file
-        getTermMatrix(file[input$textcolumn])
+        
+        file <- read_sav("../tekst_test_data.sav") %>% 
+          as_factor()
+        # file <- input$file %>% 
+        #   read_sav() %>% 
+        #   as_factor()
+        # 
+        count_words(file$q9_22, stopwords = c('ja'))
       })
     })
   })
   
   # Make the wordcloud drawing predictable during a session
-  wordcloud_rep <- repeatable(wordcloud2)
+  # wordcloud_rep <- repeatable(wordcloud2)
   
-  output$plot <- renderPlot({
+  # getting colors for the word cloud - unnaming to get only vector of colors! 
+  colors <- unname(epi_palettes$full[-1]) # indexing to avoid epinion Red in cloud!
+           
+  output$wordcloud <- renderWordcloud2({
     v <- terms()
-    wordcloud_rep(names(v), v, scale=c(4,0.5),
-                  min.freq = input$freq, max.words=input$max,
-                  colors=brewer.pal(8, "Dark2"))
+    wordcloud2(demoFreq,
+               fontFamily = 'Arial',
+               color = rep_len(colors, NROW(temp)),
+               rotateRatio = 0)
   })
 }
 
-# Using "memoise" to automatically cache the results
-getTermMatrix <- memoise(function(text) {
+load_stopwords <- function() {
+  stop <- read.csv("../stopord.txt", 
+                 sep = "\n",
+                 fileEncoding = "UTF-8",
+                 header = F) 
+
+  as.character(stop$V1)
+}
+
+count_words <- function(text_data,
+                        stopwords = load_stopwords(),
+                        mention_limit=10,
+                        patterns=NULL
+) {
+  tkns <- quanteda::tokens(text_data,
+                           remove_punct = TRUE,
+                           remove_symbols = TRUE,
+                           remove_numbers = TRUE,
+                           remove_url = TRUE,
+                           remove_separators = TRUE,
+                           split_hyphens = TRUE,
+                           include_docvars = TRUE,
+                           padding = F)
+ 
+  dfm_question <- quanteda::dfm(x = tkns, tolower = TRUE)
   
-  myCorpus = Corpus(VectorSource(text))
-  myCorpus = tm_map(myCorpus, content_transformer(tolower))
-  myCorpus = tm_map(myCorpus, removePunctuation)
-  myCorpus = tm_map(myCorpus, removeNumbers)
-  myCorpus = tm_map(myCorpus, removeWords,
-                    c(stopwords("SMART")))
+  # problems? Search for dplyr and NSE (non standard evaluation)
+  # there is no abundant information about how to do it properly.
+  # https://shipt.tech/https-shipt-tech-advanced-programming-and-non-standard-evaluation-with-dplyr-e043f89deb3d
+  # This is the solution used (under the section 'a note on tidyverse')
+  # https://www.r-bloggers.com/2019/08/no-visible-binding-for-global-variable/
+  df <- dfm_question %>%
+    quanteda::convert(to = "data.frame") %>%
+    tidyr::pivot_longer(!"doc_id",
+                        names_to = "word",
+                        values_to = "count") %>%
+    dplyr::filter(.data$count > 0) %>%
+    dplyr::filter(!.data$word %in% stopwords)
   
-  myDTM = TermDocumentMatrix(myCorpus,
-                             control = list(minWordLength = 1))
-  
-  m = as.matrix(myDTM)
-  
-  sort(rowSums(m), decreasing = TRUE)
-})
+  count <- df %>%
+    dplyr::group_by(.data$word) %>%
+    dplyr::summarise(mentions = sum(.data$count, na.rm = TRUE)) %>%
+    dplyr::ungroup() %>%
+    dplyr::filter(.data$mentions >= mention_limit) %>% 
+    arrange(desc(.data$mentions))
+}
 
 
 shinyApp(ui = ui, server = server)
